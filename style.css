@@ -174,7 +174,7 @@ body { display: flex; align-items: center; justify-content: center; }
   display: grid;
   grid-template-columns: 1fr 1.3fr 1fr;
   gap: 14px;
-  margin-top: 2.6vh;
+  margin-top: 1.8vh;
   text-align: left;
 }
 .overCols {
@@ -230,6 +230,51 @@ tr.me td { color: var(--torch); background: rgba(255, 181, 71, 0.1); }
   animation: blink 0.7s steps(2) infinite;
 }
 @keyframes blink { 50% { opacity: 0.25; } }
+
+.classPick {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 1.6vh;
+}
+.classCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: clamp(74px, 11vh, 96px);
+  padding: 8px 4px 6px;
+  background: var(--stone);
+  border: 3px solid var(--edge);
+  color: var(--muted);
+  font-family: 'VT323', monospace;
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+.classCard canvas {
+  width: auto;
+  height: clamp(34px, 6vh, 50px);
+  image-rendering: pixelated;
+}
+.classCard:hover { border-color: #5a5490; color: var(--parchment); }
+.classCard.sel {
+  border-color: var(--torch);
+  color: var(--torch);
+  background: var(--stone-2);
+  box-shadow: 0 0 14px rgba(255, 181, 71, 0.3);
+}
+.classCard:focus-visible { outline: 3px solid var(--torch); outline-offset: 3px; }
+.classInfo {
+  font-size: var(--fs-small);
+  color: var(--parchment);
+  max-width: 52em;
+  margin: 0.8vh auto 0;
+  line-height: 1.15;
+  min-height: 1.2em;
+}
+.classInfo b { color: var(--torch); font-weight: normal; }
+.classInfo b.sk { color: var(--steel); }
 
 .pausePanel { max-width: 460px; }
 .pauseBtns { display: flex; flex-direction: column; gap: 14px; margin-top: 3vh; }

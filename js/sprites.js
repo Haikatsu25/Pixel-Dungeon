@@ -81,25 +81,6 @@ function drawSprite(c, img, x, y, flip) {
 function buildSprites() {
   const K = '#1a1c2c';
 
-  // ---------- Caballero ----------
-  const knightPal = { k: K, s: '#c2c3c7', g: '#8b93af', w: '#ffffff', v: '#29366f', b: '#3b5dc9', y: '#ffcd75', r: '#e43b44' };
-  const knightTop = [
-    '....rrr.....',
-    '...rr.......',
-    '..kkkkkkk...',
-    '.kssssssgk..',
-    '.kswssssgk..',
-    '.ksskvvvvk..',
-    '.ksskvwvwk..',
-    '.kgsssssgk..',
-    '..kkkkkkk...',
-    '.kbbyyybbk..',
-    '.kbbsssbbk..',
-    '..kbbbbbk...',
-  ];
-  def('knightA', knightTop.concat(['..kk...kk...', '..kk...kk...']), knightPal);
-  def('knightB', knightTop.concat(['...kk.kk....', '...kk.kk....']), knightPal);
-
   // ---------- Slimes ----------
   const SLIME = [
     '....kkkk....',

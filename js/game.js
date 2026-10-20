@@ -302,7 +302,8 @@ function startRun(name, seedText) {
     kills: 0, killPts: 0, maxCombo: 0, perfect: 0, perfectPts: 0, timeBonus: 0,
     livesLost: 0, lifeBonus: 0, ults: 0, rooms: 0, clearPts: 0, coinPts: 0, deflects: 0,
   };
-  G.player = new Player(0, 0);
+  G.clsId = UI.selectedClass || 'knight';
+  G.player = new Player(0, 0, G.clsId);
   G.transition = null;
   loadFloor(1);
   G.state = 'play';
@@ -315,7 +316,7 @@ function loadFloor(n) {
   G.dungeon = d; G.map = d.map; G.mapW = d.w; G.mapH = d.h;
   buildTiles(n);
   G.enemies = []; G.bullets = []; G.pickups = []; G.props = [];
-  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = [];
+  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = []; G.freezeT = 0;
   G.boss = null; G.activeRoom = null; G.currentRoom = d.start;
   d.start.visited = true;
   for (const r of d.rooms) {
@@ -344,7 +345,7 @@ function endRun(won) {
   G.state = 'over';
   const entry = {
     name: G.name, score: G.score, floor: G.floor, won,
-    seed: G.seedText, date: new Date().toLocaleDateString('es-ES'),
+    seed: G.seedText, cls: G.player.clsId, date: new Date().toLocaleDateString('es-ES'),
   };
   const rank = saveScore(entry);
   UI.showOver(won, entry, rank, G.stats);
@@ -360,7 +361,7 @@ function initPreview() {
   G.dungeon = d; G.map = d.map; G.mapW = d.w; G.mapH = d.h;
   buildTiles(1);
   G.enemies = []; G.bullets = []; G.pickups = []; G.props = [];
-  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = [];
+  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = []; G.freezeT = 0;
   G.boss = null; G.banner = null; G.activeRoom = null;
 }
 
@@ -397,7 +398,12 @@ function update(dt) {
     if (G.combo.timer <= 0) G.combo.count = 0;
   }
 
+  // HIELO del mago: enemigos, aparición de enemigos y balas enemigas quedan congelados
+  const frozen = G.freezeT > 0;
+  if (frozen) G.freezeT -= dt;
+
   for (const m of G.markers) {
+    if (frozen) continue;
     m.t -= dt;
     if (m.t <= 0) {
       m.dead = true;
@@ -407,7 +413,7 @@ function update(dt) {
   }
 
   updateFlow();
-  for (const e of G.enemies) if (!e.dead) e.update(dt);
+  for (const e of G.enemies) if (!e.dead && !frozen) e.update(dt);
 
   // Separación entre enemigos
   const es = G.enemies;
@@ -436,7 +442,7 @@ function update(dt) {
       const na = cur + clamp(angleDiff(cur, angleTo(b.x, b.y, p.x, p.y)), -b.turn * dt, b.turn * dt);
       b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
     }
-    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (!(frozen && b.from === 'e')) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; }
     if (b.life <= 0) { b.dead = true; if (b.split) splitBullet(b); continue; }
     if (solidAt(b.x, b.y)) {
       b.dead = true;
@@ -517,7 +523,10 @@ function update(dt) {
     pt.life -= dt;
   }
   for (const t of G.texts) { t.y -= 18 * dt; t.life -= dt; }
-  for (const ef of G.effects) ef.life -= dt;
+  for (const ef of G.effects) {
+    ef.life -= dt;
+    if (ef.type === 'meteor' && ef.life <= 0 && !ef.done) { ef.done = true; meteorImpact(ef); }
+  }
 
   G.enemies = G.enemies.filter(e => !e.dead);
   G.bullets = G.bullets.filter(b => !b.dead);
@@ -754,6 +763,14 @@ function render() {
   ctx.translate(-camX, -camY);
   drawTorches();
   for (const e of G.enemies) if (e.drawFx) e.drawFx(ctx);
+  if (G.freezeT > 0) {
+    for (const e of G.enemies) {
+      ctx.fillStyle = 'rgba(154,208,255,0.35)';
+      ctx.beginPath(); ctx.arc(e.x, e.y - (e.isBoss ? 6 : 0), e.r + 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(220,240,255,0.8)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(e.x, e.y - (e.isBoss ? 6 : 0), e.r + 3, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
   for (const b of G.bullets) {
     if (b.laser) {
       const sp = Math.hypot(b.vx, b.vy) || 1, lx = b.vx / sp * 12, ly = b.vy / sp * 12;
@@ -783,9 +800,24 @@ function render() {
   for (const ef of G.effects) {
     if (ef.type === 'wave') {
       const k = 1 - ef.life / ef.max;
-      ctx.strokeStyle = 'rgba(255,90,60,' + (1 - k) + ')';
+      ctx.globalAlpha = 1 - k; ctx.strokeStyle = ef.color || '#ff5a3c';
       ctx.lineWidth = 4 * (1 - k) + 1;
       ctx.beginPath(); ctx.arc(ef.x, ef.y, Math.max(1, ef.range * k), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    if (ef.type === 'meteor') {
+      // Aviso en el suelo y el meteoro cayendo
+      const k = 1 - ef.life / ef.max;
+      ctx.strokeStyle = 'rgba(255,154,60,' + (0.5 + 0.5 * Math.abs(Math.sin(G.time * 20))) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(ef.x, ef.y, ef.range, ef.range * 0.55, 0, 0, Math.PI * 2); ctx.stroke();
+      const my = ef.y - 180 * (1 - k);
+      ctx.fillStyle = '#ff9a3c';
+      ctx.beginPath(); ctx.arc(ef.x, my, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffe066';
+      ctx.beginPath(); ctx.arc(ef.x, my, 4, 0, Math.PI * 2); ctx.fill();
+      if (G.state !== 'paused') G.particles.push({ x: ef.x + rnd(-4, 4), y: my - 6, vx: 0, vy: -30, life: 0.3, max: 0.3, color: '#ff5a1f', size: 3 });
       continue;
     }
     if (ef.type !== 'slash') continue;
@@ -800,6 +832,10 @@ function render() {
   for (const t of G.texts) drawText(ctx, t.text, Math.round(t.x), Math.round(t.y), 8, t.color, 'center', clamp(t.life / t.max * 1.5, 0, 1));
   ctx.restore();
 
+  if (G.freezeT > 0) {
+    ctx.fillStyle = 'rgba(120,190,255,' + (0.1 + 0.04 * Math.sin(G.time * 6)) + ')';
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
   if (G.state !== 'menu' && G.player) drawHUD(ctx);
 
   if (G.flash > 0) {
@@ -866,6 +902,7 @@ function step(dt) {
 }
 
 buildSprites();
+buildClassSprites();
 UI.init();
 initPreview();
 requestAnimationFrame(frame);

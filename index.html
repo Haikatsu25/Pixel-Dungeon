@@ -24,7 +24,7 @@
         <label for="inName">Tu nombre
           <input id="inName" maxlength="10" autocomplete="off" spellcheck="false" placeholder="JUGADOR">
         </label>
-        <label for="inSeed">Semilla de la mazmorra
+        <label for="inSeed">Semilla (igual = mismo mapa)
           <input id="inSeed" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Al azar">
         </label>
         <div class="actions">
@@ -32,7 +32,8 @@
           <button class="btn alt btnFull" type="button">Pantalla completa (F)</button>
         </div>
       </div>
-      <p class="hint">Para competir en igualdad, usen la misma semilla: les tocará el mismo mapa, los mismos enemigos y los mismos cofres.</p>
+      <div id="classPick" class="classPick" role="group" aria-label="Elige tu clase"></div>
+      <p id="classInfo" class="classInfo"></p>
 
       <div class="cols">
         <section class="box">
@@ -43,7 +44,7 @@
             <li><b>Clic</b> disparar (mantener)</li>
             <li><b>Espacio</b> rodar (eres invulnerable)</li>
             <li><b>Q / rueda</b> cambiar de arma</li>
-            <li><b>R / clic derecho</b> FURIA: daño x2 por 6 s (se carga haciendo daño)</li>
+            <li><b>R / clic derecho</b> habilidad de tu clase (se carga haciendo daño)</li>
             <li><b>E</b> recoger, abrir, comprar</li>
             <li><b>P / Esc</b> pausa · <b>M</b> sonido</li>
             <li><b>F</b> pantalla completa</li>
@@ -116,6 +117,7 @@
 <script src="js/sprites.js"></script>
 <script src="js/dungeon.js"></script>
 <script src="js/weapons.js"></script>
+<script src="js/classes.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/bosses.js"></script>
 <script src="js/ui.js"></script>

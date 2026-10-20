@@ -46,19 +46,14 @@ function falloffMult(b) {
 function rarityName(item) { return RARITY[item.rar].names[WEAPONS[item.id].fem ? 1 : 0]; }
 function weaponLabel(item) { return WEAPONS[item.id].name + ' ' + rarityName(item); }
 
-// Habilidad FURIA
-const ULT_CHARGE = 140;     // daño necesario para llenarla
-const ULT_TIME = 6;         // segundos de duración
-const ULT_DMG = 2;          // multiplicador de daño
-const ULT_RATE = 1.6;       // multiplicador de cadencia
-const ULT_WAVE_DMG = 12;    // daño de la onda al activarla
-const ULT_WAVE_RANGE = 70;
 
 function fireWeapon(p) {
   const w = p.weapon;
-  const fury = p.ultT > 0;
-  const dmg = Math.round(w.dmg * RARITY[p.item.rar].mult * (fury ? ULT_DMG : 1) * 10) / 10;
-  p.cool = w.rate / (fury ? ULT_RATE : 1);
+  // Modificadores de la habilidad de clase activa
+  const dmgMod = p.mod('dmg'), extra = p.mod('multishot', 0);
+  const boosted = dmgMod > 1 || extra > 0;
+  const dmg = Math.round(w.dmg * RARITY[p.item.rar].mult * dmgMod * 10) / 10;
+  p.cool = w.rate / p.mod('rate');
   Sfx.play(w.sfx);
   const a = p.aim;
 
@@ -80,7 +75,7 @@ function fireWeapon(p) {
       if (Math.abs(angleDiff(a, angleTo(p.x, p.y, b.x, b.y))) > w.arc / 2) continue;
       const sp = Math.hypot(b.vx, b.vy) * 1.5;
       b.from = 'p'; b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
-      b.dmg = 4 * (fury ? ULT_DMG : 1); b.color = '#9dff7a'; b.life = 1.2;
+      b.dmg = 4 * dmgMod; b.color = '#9dff7a'; b.life = 1.2;
       G.stats.deflects++;
       Sfx.play('deflect');
     }
@@ -88,14 +83,17 @@ function fireWeapon(p) {
   }
 
   const mx = p.x + Math.cos(a) * 12, my = p.y + 1 + Math.sin(a) * 12;
-  for (let i = 0; i < w.count; i++) {
-    let ang = a;
+  // RÁFAGA (exploradora): copias extra del disparo a los lados
+  const offsets = [0];
+  for (let k = 1; k <= extra; k++) offsets.push(k % 2 ? 0.22 * Math.ceil(k / 2) : -0.22 * Math.ceil(k / 2));
+  for (const off of offsets) for (let i = 0; i < w.count; i++) {
+    let ang = a + off;
     if (w.count > 1) ang += w.spread * (i / (w.count - 1) - 0.5) + rnd(-0.05, 0.05);
     else ang += rnd(-w.spread / 2, w.spread / 2);
     const sp = w.speed * (w.count > 1 ? rnd(0.85, 1.1) : 1);
     G.bullets.push({
-      x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: w.r * (fury ? 1.3 : 1), dmg,
-      from: 'p', color: fury ? '#ff5a3c' : w.color, life: w.life, pierce: !!w.pierce, hits: w.pierce ? new Set() : null, laser: !!w.pierce,
+      x: mx, y: my, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: w.r * (boosted ? 1.3 : 1), dmg,
+      from: 'p', color: boosted ? p.skill.color : w.color, life: w.life, pierce: !!w.pierce, hits: w.pierce ? new Set() : null, laser: !!w.pierce,
       falloff: w.falloff || null, x0: p.x, y0: p.y,
     });
   }

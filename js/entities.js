@@ -47,13 +47,15 @@ function drawShadow(c, x, y, rx, ry) {
 
 // ---------- Jugador ----------
 class Player {
-  constructor(x, y) {
+  constructor(x, y, clsId = 'knight') {
     this.x = x; this.y = y; this.hw = 5; this.hh = 5; this.r = 6;
+    this.clsId = CLASSES[clsId] ? clsId : 'knight';
+    this.cls = CLASSES[this.clsId];
     this.lives = 3; this.maxLives = 3;
-    this.maxShield = 3; this.shield = 3;
+    this.maxShield = this.cls.shield; this.shield = this.maxShield;
     this.sinceHit = 99; this.regenT = 0;
     this.coins = 0;
-    this.weapons = [{ id: 'pistol', rar: 0 }]; this.cur = 0;
+    this.weapons = [{ id: this.cls.weapon, rar: 0 }]; this.cur = 0;
     this.cool = 0; this.aim = 0;
     this.invuln = 0;
     this.roll = 0; this.rollCd = 0; this.rdx = 1; this.rdy = 0;
@@ -65,6 +67,9 @@ class Player {
   }
 
   get item() { return this.weapons[this.cur]; }
+  get skill() { return this.cls.skill; }
+  // Modificador de la habilidad activa (dmg, rate, speed, multishot, rollCd)
+  mod(key, fallback = 1) { return this.ultT > 0 && this.skill[key] !== undefined ? this.skill[key] : fallback; }
   get weapon() { return WEAPONS[this.item.id]; }
 
   update(dt) {
@@ -81,7 +86,7 @@ class Player {
     this.rollCd -= dt;
     if (Input.hit('Space') && this.roll <= 0 && this.rollCd <= 0) {
       if (!len) { mx = Math.cos(this.aim); my = Math.sin(this.aim); }
-      this.roll = 0.24; this.rollCd = 0.75; this.rdx = mx; this.rdy = my;
+      this.roll = 0.24; this.rollCd = this.mod('rollCd', this.cls.rollCd); this.rdx = mx; this.rdy = my;
       Sfx.play('roll');
     }
 
@@ -93,7 +98,7 @@ class Player {
         G.particles.push({ x: this.x + rnd(-3, 3), y: this.y + 6, vx: 0, vy: -10, life: 0.3, max: 0.3, color: '#8b8fb0', size: 2 });
       }
     } else {
-      const sp = (this.ultT > 0 ? 115 : 95) * (this.slowT > 0 ? 0.55 : 1);
+      const sp = this.cls.speed * this.mod('speed') * (this.slowT > 0 ? 0.55 : 1);
       vx = mx * sp; vy = my * sp;
     }
     moveEntity(this, vx * dt, vy * dt);
@@ -108,9 +113,9 @@ class Player {
     if (this.ultT > 0) {
       this.ultT -= dt;
       if (Math.random() < 0.5) {
-        G.particles.push({ x: this.x + rnd(-6, 6), y: this.y + rnd(-4, 8), vx: rnd(-8, 8), vy: -40, life: 0.4, max: 0.4, color: Math.random() < 0.5 ? '#ff3b3b' : '#ffb547', size: 2 });
+        G.particles.push({ x: this.x + rnd(-6, 6), y: this.y + rnd(-4, 8), vx: rnd(-8, 8), vy: -40, life: 0.4, max: 0.4, color: this.skill.color, size: 2 });
       }
-      if (this.ultT <= 0) addText(this.x, this.y - 22, 'FURIA TERMINADA', '#9a93b8', 1);
+      if (this.ultT <= 0) addText(this.x, this.y - 22, this.skill.name + ' TERMINADA', '#9a93b8', 1);
     }
     this.cool -= dt;
     if (Input.mouse.down && this.cool <= 0 && this.roll <= 0) fireWeapon(this);
@@ -131,13 +136,13 @@ class Player {
     } else this.regenT = 0;
   }
 
-  // FURIA: se carga haciendo daño (ULT_CHARGE puntos de daño la llenan)
+  // Habilidad de clase: se carga haciendo daño (skill.charge puntos la llenan)
   chargeUlt(amount) {
     if (this.ultT > 0 || this.ult >= 1 || this.dead) return;
-    this.ult = Math.min(1, this.ult + amount / ULT_CHARGE);
+    this.ult = Math.min(1, this.ult + amount / this.skill.charge);
     if (this.ult >= 1) {
       Sfx.play('ultReady');
-      addText(this.x, this.y - 24, 'FURIA LISTA: R', '#ff5a3c', 1.4);
+      addText(this.x, this.y - 24, this.skill.name + ' LISTA: R', this.skill.color, 1.4);
     }
   }
 
@@ -146,33 +151,15 @@ class Player {
       if (this.ult < 1 && this.ultT <= 0) Sfx.play('empty');
       return;
     }
+    const sk = this.skill;
     this.ult = 0;
-    this.ultT = ULT_TIME;
+    this.ultT = sk.time;
     this.invuln = Math.max(this.invuln, 0.5);
     G.stats.ults++;
     Sfx.play('ult');
     addShake(8);
-    showBanner('¡FURIA!', 'Daño x2 durante ' + ULT_TIME + ' s', '#ff5a3c', 1.3);
-    // Onda expansiva: daña a los cercanos y borra las balas enemigas
-    G.effects.push({ type: 'wave', x: this.x, y: this.y, life: 0.4, max: 0.4, range: ULT_WAVE_RANGE });
-    for (const e of G.enemies) {
-      if (e.dead || e.air) continue;
-      const d = dist(this.x, this.y, e.x, e.y);
-      if (d < ULT_WAVE_RANGE + e.r) {
-        const a = angleTo(this.x, this.y, e.x, e.y);
-        e.damage(ULT_WAVE_DMG, Math.cos(a) * 200, Math.sin(a) * 200);
-      }
-    }
-    for (const b of G.bullets) {
-      if (b.from === 'e' && dist(this.x, this.y, b.x, b.y) < ULT_WAVE_RANGE + 30) {
-        b.dead = true;
-        spawnParticles(b.x, b.y, 3, '#ff9a3c', 40, 0.25, 2);
-      }
-    }
-    for (let i = 0; i < 32; i++) {
-      const a = i / 32 * Math.PI * 2;
-      G.particles.push({ x: this.x, y: this.y, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, life: 0.35, max: 0.35, color: '#ff5a3c', size: 3 });
-    }
+    showBanner(sk.name + '!', sk.desc, sk.color, 1.4);
+    SKILL_ACTIVATE[this.clsId](this);
   }
 
   switchWeapon() {
@@ -212,15 +199,19 @@ class Player {
     if (this.dead) return;
     drawShadow(c, this.x, this.y + 7, 6, 2.5);
     if (this.ultT > 0) {
+      // Aura del color de la habilidad
       const pulse = 11 + Math.sin(G.time * 14) * 2;
-      c.fillStyle = 'rgba(255,70,50,0.22)';
+      c.globalAlpha = 0.25; c.fillStyle = this.skill.color;
       c.beginPath(); c.arc(this.x, this.y, pulse + 4, 0, Math.PI * 2); c.fill();
-      c.strokeStyle = 'rgba(255,140,60,0.8)'; c.lineWidth = 1;
+      c.globalAlpha = 0.8; c.strokeStyle = this.skill.color; c.lineWidth = 1;
       c.beginPath(); c.arc(this.x, this.y, pulse, 0, Math.PI * 2); c.stroke();
+      c.globalAlpha = 1;
     }
-    if (this.invuln > 0 && this.roll <= 0 && Math.floor(G.time * 18) % 2 === 0) return;
+    const muralla = this.clsId === 'dwarf' && this.ultT > 0;
+    if (this.invuln > 0 && this.roll <= 0 && !muralla && Math.floor(G.time * 18) % 2 === 0) return;
     const step = Math.floor(this.walkT * 9) % 2;
-    const img = this.moving && step ? SPR.knightB : SPR.knightA;
+    const img = SPR['cls_' + this.clsId + (this.moving && step ? 'B' : 'A')];
+    if (this.clsId === 'rogue' && this.ultT > 0) c.globalAlpha = 0.5;
     const bob = this.moving ? step : 0;
     if (this.roll > 0) {
       const k = 1 - this.roll / 0.24;
@@ -229,10 +220,12 @@ class Player {
       c.rotate(k * Math.PI * 2 * (this.rdx >= 0 ? 1 : -1));
       c.drawImage(img, -img.width / 2, -img.height / 2);
       c.restore();
+      c.globalAlpha = 1;
       return;
     }
-    drawSprite(c, img, this.x, this.y - 3 - bob, this.face < 0);
+    drawSprite(c, img, this.x, this.y - 4 - bob, this.face < 0);
     this.drawWeapon(c);
+    c.globalAlpha = 1;
     if (this.slowT > 0) {
       // Telaraña pegada al caballero
       c.strokeStyle = 'rgba(232,232,240,0.75)'; c.lineWidth = 1;

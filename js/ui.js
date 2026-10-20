@@ -58,7 +58,7 @@ function drawHUD(c) {
   const p = G.player;
 
   // Vidas y escudo
-  panel(c, 6, 6, 80, 66);
+  panel(c, 6, 6, 96, 66);
   for (let i = 0; i < p.maxLives; i++) {
     c.drawImage(i < p.lives ? SPR.heart : SPR.heartEmpty, 12 + i * 22, 11, 18, 16);
   }
@@ -69,17 +69,18 @@ function drawHUD(c) {
     c.fillStyle = 'rgba(90,184,255,0.7)';
     c.fillRect(12 + p.shield * 12, 43, 9 * p.regenT, 1);
   }
-  // Barra de FURIA
+  // Barra de la habilidad de clase
+  const sk = p.skill;
   const ready = p.ult >= 1, active = p.ultT > 0;
   const blink = Math.floor(G.time * 4) % 2 === 0;
-  let label = 'FURIA', col = '#9a93b8', fill = p.ult;
-  if (active) { label = 'FURIA ' + Math.ceil(p.ultT); col = '#ff5a3c'; fill = p.ultT / ULT_TIME; }
-  else if (ready) { label = 'R: FURIA'; col = blink ? '#ff5a3c' : '#ffb547'; }
+  let label = sk.name, col = '#9a93b8', fill = p.ult;
+  if (active) { label = sk.name + ' ' + Math.ceil(p.ultT); col = sk.color; fill = p.ultT / sk.time; }
+  else if (ready) { label = 'R: ' + sk.name; col = blink ? sk.color : '#ffb547'; }
   drawText(c, label, 12, 48, 8, col);
-  c.fillStyle = '#1a1c2c'; c.fillRect(12, 59, 68, 7);
-  c.fillStyle = active ? '#ff5a3c' : ready ? (blink ? '#ff5a3c' : '#ffb547') : '#b84a2e';
-  c.fillRect(13, 60, 66 * clamp(fill, 0, 1), 5);
-  c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(13, 60, 66 * clamp(fill, 0, 1), 1);
+  c.fillStyle = '#1a1c2c'; c.fillRect(12, 59, 84, 7);
+  c.fillStyle = active || (ready && blink) ? sk.color : ready ? '#ffb547' : '#6c6590';
+  c.fillRect(13, 60, 82 * clamp(fill, 0, 1), 5);
+  c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(13, 60, 82 * clamp(fill, 0, 1), 1);
 
   // Puntuación y combo
   const cx = VIEW_W / 2;
@@ -260,6 +261,10 @@ const UI = {
     this.inName = document.getElementById('inName');
     this.inSeed = document.getElementById('inSeed');
     try { this.inName.value = localStorage.getItem('pd_name') || ''; } catch (e) { /* nada */ }
+    let saved = null;
+    try { saved = localStorage.getItem('pd_class'); } catch (e) { /* nada */ }
+    this.selectedClass = CLASSES[saved] ? saved : 'knight';
+    this.buildClassPicker();
 
     const play = () => {
       const name = this.inName.value.trim() || 'JUGADOR';
@@ -282,6 +287,48 @@ const UI = {
     this.btnMute.addEventListener('click', () => { Sfx.toggleMute(); this.updateMute(); });
     document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
     this.renderBoard('boardMenu', -1);
+  },
+
+  buildClassPicker() {
+    const box = document.getElementById('classPick');
+    if (!box) return;
+    box.innerHTML = '';
+    this.classButtons = {};
+    for (const id of CLASS_ORDER) {
+      const cl = CLASSES[id];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'classCard';
+      b.setAttribute('aria-pressed', 'false');
+      const cv = document.createElement('canvas');
+      const spr = SPR['cls_' + id + 'A'];
+      cv.width = spr.width * 3; cv.height = spr.height * 3;
+      const x = cv.getContext('2d');
+      x.imageSmoothingEnabled = false;
+      x.drawImage(spr, 0, 0, cv.width, cv.height);
+      const label = document.createElement('span');
+      label.textContent = cl.name.charAt(0) + cl.name.slice(1).toLowerCase();
+      b.appendChild(cv); b.appendChild(label);
+      b.addEventListener('click', () => this.selectClass(id));
+      box.appendChild(b);
+      this.classButtons[id] = b;
+    }
+    this.selectClass(this.selectedClass);
+  },
+
+  selectClass(id) {
+    this.selectedClass = id;
+    try { localStorage.setItem('pd_class', id); } catch (e) { /* nada */ }
+    for (const [k, b] of Object.entries(this.classButtons || {})) {
+      b.classList.toggle('sel', k === id);
+      b.setAttribute('aria-pressed', k === id ? 'true' : 'false');
+    }
+    const cl = CLASSES[id], info = document.getElementById('classInfo');
+    if (info) {
+      info.innerHTML = '<b>' + cl.name.charAt(0) + cl.name.slice(1).toLowerCase() + ':</b> ' + cl.desc +
+        ' Escudo ' + cl.shield + ' · Arma ' + WEAPONS[cl.weapon].name.toLowerCase() +
+        '. <b class="sk">' + cl.skill.name + ' (R):</b> ' + cl.skill.desc;
+    }
   },
 
   updateMute() {
@@ -325,10 +372,11 @@ const UI = {
       return;
     }
     const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-    let html = '<tr><th>#</th><th>Nombre</th><th class="num">Puntos</th><th>Piso</th><th>Semilla</th></tr>';
+    let html = '<tr><th>#</th><th>Nombre</th><th>Clase</th><th class="num">Puntos</th><th>Piso</th><th>Semilla</th></tr>';
     list.forEach((e, i) => {
+      const cl = CLASSES[e.cls] ? CLASSES[e.cls].name.charAt(0) + CLASSES[e.cls].name.slice(1).toLowerCase() : '—';
       html += '<tr' + (i === highlight ? ' class="me"' : '') + '><td>' + (i + 1) + '</td><td>' + esc(e.name) +
-        '</td><td class="num">' + e.score + '</td><td>' + (e.won ? '★' : e.floor) + '</td><td>' + esc(e.seed) + '</td></tr>';
+        '</td><td>' + cl + '</td><td class="num">' + e.score + '</td><td>' + (e.won ? '★' : e.floor) + '</td><td>' + esc(e.seed) + '</td></tr>';
     });
     t.innerHTML = html;
   },
@@ -340,13 +388,13 @@ const UI = {
     title.classList.toggle('win', won);
     document.getElementById('overSub').textContent = won
       ? entry.name + ' escapó de la mazmorra. Semilla ' + entry.seed + '.'
-      : entry.name + ' llegó hasta el piso ' + entry.floor + '. Semilla ' + entry.seed + '.';
+      : entry.name + ' (' + CLASSES[entry.cls].name.toLowerCase() + ') llegó hasta el piso ' + entry.floor + '. Semilla ' + entry.seed + '.';
     document.getElementById('newRecord').classList.toggle('hidden', rank !== 0);
 
     const rows = [
       ['Enemigos derrotados (' + s.kills + ')', '+' + s.killPts],
       ['Combo más largo', String(s.maxCombo)],
-      ['Furias usadas', String(s.ults)],
+      ['Habilidad ' + CLASSES[entry.cls].skill.name + ' usada', String(s.ults)],
       ['Salas despejadas (' + s.rooms + ')', '+' + s.clearPts],
       ['Salas perfectas (' + s.perfect + ')', '+' + s.perfectPts],
       ['Monedas recogidas', '+' + s.coinPts],
