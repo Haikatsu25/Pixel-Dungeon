@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Dungeon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="1280" height="720"></canvas>
+  <div id="crt"></div>
+
+  <!-- MENÚ PRINCIPAL -->
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <h1 class="logo"><span class="l1">PIXEL</span> <span class="l2">DUNGEON</span></h1>
+      <p class="tag">Baja tres pisos, vence a los tres reyes slime y sal con más puntos que tu rival.</p>
+
+      <div class="form">
+        <label for="inName">Tu nombre
+          <input id="inName" maxlength="10" autocomplete="off" spellcheck="false" placeholder="JUGADOR">
+        </label>
+        <label for="inSeed">Semilla de la mazmorra
+          <input id="inSeed" maxlength="12" autocomplete="off" spellcheck="false" placeholder="Al azar">
+        </label>
+        <div class="actions">
+          <button id="btnPlay" class="btn">Entrar a la mazmorra</button>
+          <button class="btn alt btnFull" type="button">Pantalla completa (F)</button>
+        </div>
+      </div>
+      <p class="hint">Para competir en igualdad, usen la misma semilla: les tocará el mismo mapa, los mismos enemigos y los mismos cofres.</p>
+
+      <div class="cols">
+        <section class="box">
+          <h2>Controles</h2>
+          <ul class="keys">
+            <li><b>W A S D</b> moverse</li>
+            <li><b>Ratón</b> apuntar</li>
+            <li><b>Clic</b> disparar (mantener)</li>
+            <li><b>Espacio</b> rodar (eres invulnerable)</li>
+            <li><b>Q / rueda</b> cambiar de arma</li>
+            <li><b>R / clic derecho</b> FURIA: daño x2 por 6 s (se carga haciendo daño)</li>
+            <li><b>E</b> recoger, abrir, comprar</li>
+            <li><b>P / Esc</b> pausa · <b>M</b> sonido</li>
+            <li><b>F</b> pantalla completa</li>
+            <li><b>Escopeta:</b> cuanto más cerca disparas, más daño (hasta x1.8 a quemarropa).</li>
+            <li><b>Rarezas:</b> <span class="r1">rara</span> x1.35 · <span class="r2">épica</span> x1.75 · <span class="r3">legendaria</span> x2.3 de daño. Mejores en pisos profundos y jefes.</li>
+          </ul>
+        </section>
+        <section class="box">
+          <h2>Cómo puntuar</h2>
+          <ul class="keys">
+            <li>Slime 25 · Murciélago 35 · Esqueleto 50</li>
+            <li>Mago 60 · Gólem 90 · Rey Slime 1500</li>
+            <li><b>Combo:</b> cada 3 bajas seguidas suman +0.25x (máx. x4). Un golpe lo deja a la mitad.</li>
+            <li><b>Piso:</b> el 2 vale x1.5 y el 3 vale x2.</li>
+            <li><b>Sala despejada:</b> +100 · <b>perfecta</b> (sin golpes): +250 extra.</li>
+            <li><b>Monedas:</b> +5 cada una · <b>jefe rápido:</b> bono por tiempo.</li>
+            <li><b>Escudo:</b> absorbe golpes y se recarga solo. Las vidas no se recuperan, pero perder una no quita puntos.</li>
+            <li><b>Victoria:</b> +1000 por vida restante.</li>
+          </ul>
+        </section>
+        <section class="box">
+          <h2>Mejores 10</h2>
+          <table id="boardMenu"></table>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSA -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel pausePanel">
+      <h1 class="logo small win">PAUSA</h1>
+      <div class="pauseBtns">
+        <button id="btnResume" class="btn">Continuar (P)</button>
+        <button class="btn alt btnFull" type="button">Pantalla completa (F)</button>
+        <button id="btnMute" class="btn alt" type="button">Silenciar (M)</button>
+        <button id="btnQuit" class="btn alt danger" type="button">Rendirme y guardar puntaje (X)</button>
+      </div>
+      <p class="hint">En Chrome o Edge, en pantalla completa: Esc pausa el juego. Para salir de pantalla completa usa F, este botón o mantén Esc presionado.</p>
+    </div>
+  </div>
+
+  <!-- FIN DE PARTIDA -->
+  <div id="over" class="overlay hidden">
+    <div class="panel">
+      <h1 id="overTitle" class="logo small">GAME OVER</h1>
+      <p id="overSub" class="tag"></p>
+      <div id="newRecord" class="record hidden">¡Nuevo récord!</div>
+      <div class="btns">
+        <button id="btnRetry" class="btn">Reintentar con la misma semilla</button>
+        <button id="btnNew" class="btn alt">Mazmorra nueva</button>
+        <button id="btnMenu" class="btn alt">Volver al menú</button>
+        <button class="btn alt btnFull" type="button">Pantalla completa (F)</button>
+      </div>
+      <div class="overCols">
+        <section class="box">
+          <h2>Tu partida</h2>
+          <table id="breakdown" class="breakdown"></table>
+        </section>
+        <section class="box">
+          <h2>Mejores 10</h2>
+          <table id="boardOver"></table>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/dungeon.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
