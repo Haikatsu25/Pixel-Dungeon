@@ -23,10 +23,11 @@ const RARITY_ODDS = [
   [70, 25, 5, 0],
   [30, 42, 23, 5],
   [8, 32, 38, 22],
+  [2, 20, 40, 38],   // piso 4 en adelante
 ];
 
 function rollRarity(rng, floor) {
-  const odds = RARITY_ODDS[floor - 1];
+  const odds = RARITY_ODDS[Math.min(floor, RARITY_ODDS.length) - 1];
   let roll = rng.next() * 100;
   for (let i = 0; i < odds.length; i++) {
     if (roll < odds[i]) return i;

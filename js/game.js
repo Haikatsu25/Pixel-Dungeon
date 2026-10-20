@@ -55,13 +55,13 @@ const G = {
 };
 
 // ---------- Puntuación ----------
-const FLOOR_MULT = [1, 1.5, 2];
 const COMBO_WINDOW = 3.0;
 const BOSS_PTS = 1500;
 const COIN_PTS = 5;
 const LIFE_BONUS = 1000;
 
-function floorMult() { return FLOOR_MULT[G.floor - 1] || 2; }
+// Cada piso vale +0.5x más que el anterior, sin límite
+function floorMult() { return 1 + 0.5 * (G.floor - 1); }
 function comboMult() { return Math.min(4, 1 + Math.floor(G.combo.count / 3) * 0.25); }
 
 function showBanner(text, sub, color, dur) {
@@ -120,12 +120,8 @@ G.onBossKilled = function () {
   clearRoom(r);
   G.boss = null;
   showBanner('¡JEFE DERROTADO!', '+' + timeBonus + ' DE BONO POR TIEMPO', '#ffb547', 2.6);
-  if (G.floor < 3) {
-    G.props.push({ kind: 'portal', x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE, t: 0, delay: 1.5 });
-  } else {
-    G.state = 'winning';
-    G.endTimer = 3.5;
-  }
+  // La mazmorra no tiene fondo: siempre hay un portal al siguiente piso
+  G.props.push({ kind: 'portal', x: (r.cx + 0.5) * TILE, y: (r.cy + 0.5) * TILE, t: 0, delay: 1.5 });
 };
 
 // ---------- Salas ----------
@@ -137,7 +133,7 @@ function beginRoom(r) {
   addShake(3);
   if (r.type === 'boss') {
     r.bossDelay = 1.6;
-    showBanner(BOSS_NAMES[G.floor - 1], '¡Prepárate!', '#ff3b5c', 2);
+    showBanner(bossName(G.floor), '¡Prepárate!', '#ff3b5c', 2);
     Sfx.play('roar');
   } else {
     spawnWave(r);
@@ -334,7 +330,7 @@ function loadFloor(n) {
     p.shield = p.maxShield; p.invuln = 1; p.roll = 0;
     G.cam.x = p.x - VIEW_W / 2; G.cam.y = p.y - VIEW_H / 2;
   }
-  showBanner('PISO ' + n, THEMES[n - 1].name.toUpperCase(), '#f2dfb4', 2.4);
+  showBanner('PISO ' + n, themeOf(n).name.toUpperCase(), '#f2dfb4', 2.4);
 }
 
 function endRun(won) {
@@ -524,9 +520,9 @@ function update(dt) {
   G.flash = Math.max(0, G.flash - dt);
   if (G.banner) { G.banner.t -= dt; if (G.banner.t <= 0) G.banner = null; }
 
-  if (G.state === 'dying' || G.state === 'winning') {
+  if (G.state === 'dying') {
     G.endTimer -= dt;
-    if (G.endTimer <= 0) endRun(G.state === 'winning');
+    if (G.endTimer <= 0) endRun(false);
   }
 }
 
@@ -630,7 +626,7 @@ function drawLighting(camX, camY) {
   lctx.setTransform(RS, 0, 0, RS, 0, 0);
   lctx.globalCompositeOperation = 'source-over';
   lctx.clearRect(0, 0, VIEW_W, VIEW_H);
-  lctx.fillStyle = THEMES[G.floor - 1].ambient;
+  lctx.fillStyle = themeOf(G.floor).ambient;
   lctx.fillRect(0, 0, VIEW_W, VIEW_H);
   lctx.globalCompositeOperation = 'destination-out';
   const light = (x, y, r, a) => {
@@ -821,7 +817,7 @@ function step(dt) {
   }
 
   if (G.state === 'menu') updateMenu(dt);
-  else if (G.state === 'play' || G.state === 'dying' || G.state === 'winning' || G.state === 'transition') update(dt);
+  else if (G.state === 'play' || G.state === 'dying' || G.state === 'transition') update(dt);
 
   render();
 }

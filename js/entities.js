@@ -14,7 +14,7 @@ function addText(x, y, text, color, life = 0.8) {
 function addShake(v) { G.shake = Math.max(G.shake, v); }
 
 function enemyShoot(x, y, ang, speed, opts = {}) {
-  const sp = speed * (1 + 0.1 * (G.floor - 1));
+  const sp = speed * (1 + 0.1 * Math.min(G.floor - 1, 5));
   G.bullets.push({
     x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: opts.r || 3.5, dmg: 1,
     from: 'e', color: opts.color || '#ff3b6b', life: opts.life || 4,
@@ -264,7 +264,7 @@ class Enemy {
     const dx = p.x - this.x, dy = p.y - this.y;
     const d = Math.hypot(dx, dy) || 1, ang = Math.atan2(dy, dx);
     this.face = dx >= 0 ? 1 : -1;
-    const fm = 1 + 0.12 * (G.floor - 1);
+    const fm = 1 + 0.12 * Math.min(G.floor - 1, 5);
     const ca = this.type === 'mage' ? ang : chaseAngle(this);
     let mvx = 0, mvy = 0;
 
@@ -440,13 +440,25 @@ class Enemy {
 
 // ---------- Jefe: Rey Slime ----------
 const BOSS_NAMES = ['REY SLIME', 'REY SLIME DE LA CRIPTA', 'REY SLIME DE FUEGO'];
+function toRoman(n) {
+  const map = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'],
+    [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let s = '';
+  for (const [v, r] of map) while (n >= v) { s += r; n -= v; }
+  return s;
+}
+// Cada vuelta al ciclo de temas, el jefe regresa con un número: REY SLIME II, III...
+function bossName(floor) {
+  const cycle = Math.floor((floor - 1) / BOSS_NAMES.length);
+  return BOSS_NAMES[themeIndex(floor)] + (cycle > 0 ? ' ' + toRoman(cycle + 1) : '');
+}
 
 class Boss {
   constructor(x, y) {
     this.type = 'boss'; this.isBoss = true;
     this.x = x; this.y = y; this.hw = 16; this.hh = 12; this.r = 18;
     this.maxHp = this.hp = 300 + 170 * (G.floor - 1);
-    this.name = BOSS_NAMES[G.floor - 1];
+    this.name = bossName(G.floor);
     this.flash = 0; this.state = 'intro'; this.timer = 1.0;
     this.z = 0; this.spin = 0; this.shotT = 0; this.count = 0; this.last = '';
     this.dead = false; this.face = 1; this.anim = 0;
@@ -568,7 +580,7 @@ class Boss {
     addShake(14);
     G.onKill(this);
     for (let i = 0; i < 8; i++) dropPickup('coin', this.x, this.y);
-    if (G.floor < 3) dropPickup('weapon', this.x, this.y, { weapon: { id: G.rng.pick(WEAPON_POOL), rar: G.floor } });
+    dropPickup('weapon', this.x, this.y, { weapon: { id: G.rng.pick(WEAPON_POOL), rar: Math.min(G.floor, 3) } });
     G.onBossKilled(this);
   }
 
@@ -583,7 +595,7 @@ class Boss {
     const shs = 1 - Math.min(0.6, this.z / 150);
     drawShadow(c, this.x, this.y + 15, 22 * shs, 6 * shs);
 
-    const img = SPR['king' + G.floor + (this.flash > 0 ? '_w' : '')];
+    const img = SPR['king' + (themeIndex(G.floor) + 1) + (this.flash > 0 ? '_w' : '')];
     const sc = 4;
     let squash = this.state === 'move' ? Math.sin(this.anim * 7) * 0.06 : 0;
     if (this.state === 'jumpUp') squash = -0.15;

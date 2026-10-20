@@ -25,6 +25,9 @@ const THEMES = [
   },
 ];
 
+function themeIndex(floor) { return (floor - 1) % THEMES.length; }
+function themeOf(floor) { return THEMES[themeIndex(floor)]; }
+
 function newCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -316,7 +319,7 @@ function buildSprites() {
 
 // Baldosas generadas por código según el tema del piso
 function buildTiles(floor) {
-  const th = THEMES[floor - 1];
+  const th = themeOf(floor);
   TILES.floor = [];
   for (let v = 0; v < 4; v++) {
     const c = newCanvas(TILE, TILE), x = c.getContext('2d');

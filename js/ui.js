@@ -101,7 +101,7 @@ function drawHUD(c) {
 
   // Piso, monedas
   panel(c, 6, VIEW_H - 36, 150, 30);
-  drawText(c, 'PISO ' + G.floor + '/3', 12, VIEW_H - 31, 8, '#f2dfb4');
+  drawText(c, 'PISO ' + G.floor, 12, VIEW_H - 31, 8, '#f2dfb4');
   drawText(c, 'x' + floorMult(), 92, VIEW_H - 31, 8, '#ffb547');
   c.drawImage(SPR.coin, 12, VIEW_H - 19);
   drawText(c, String(p.coins), 22, VIEW_H - 19, 8, '#ffcd75');
@@ -340,7 +340,7 @@ const UI = {
     title.classList.toggle('win', won);
     document.getElementById('overSub').textContent = won
       ? entry.name + ' escapó de la mazmorra. Semilla ' + entry.seed + '.'
-      : entry.name + ' cayó en el piso ' + entry.floor + '. Semilla ' + entry.seed + '.';
+      : entry.name + ' llegó hasta el piso ' + entry.floor + '. Semilla ' + entry.seed + '.';
     document.getElementById('newRecord').classList.toggle('hidden', rank !== 0);
 
     const rows = [

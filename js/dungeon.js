@@ -117,7 +117,7 @@ const SHOP_OFFERS = {
 
 function generateDungeon(seed, floor) {
   const rng = new RNG((seed + Math.imul(floor, 0x9E3779B1)) >>> 0);
-  const nRooms = 6 + floor;
+  const nRooms = 6 + Math.min(floor, 5);
   const cells = new Map();
   const rooms = [];
   const links = [];
@@ -227,7 +227,8 @@ function generateDungeon(seed, floor) {
   }
 
   // Pilares, oleadas, cofre y tienda
-  const pool = ENEMY_POOLS[floor - 1];
+  const pool = ENEMY_POOLS[Math.min(floor, 3) - 1];
+  const maxGolems = floor >= 5 ? 2 : 1;
   for (const r of rooms) {
     if (r.type === 'normal') {
       const p = rng.int(0, 3);
@@ -246,14 +247,14 @@ function generateDungeon(seed, floor) {
       for (let y = r.y0 + 1; y < r.y0 + r.h - 1; y++) {
         for (let x = r.x0 + 1; x < r.x0 + r.w - 1; x++) if (map[y * W + x] === T_FLOOR) free.push([x, y]);
       }
-      const nWaves = floor >= 3 ? 3 : 2;
+      const nWaves = floor >= 6 ? 4 : floor >= 3 ? 3 : 2;
       for (let wv = 0; wv < nWaves; wv++) {
-        const count = 2 + floor + rng.int(0, 1) + (wv === nWaves - 1 ? 1 : 0);
+        const count = 2 + Math.min(floor, 6) + rng.int(0, 1) + (wv === nWaves - 1 ? 1 : 0);
         const wave = [];
         let golems = 0;
         for (let i = 0; i < count; i++) {
           let type = rng.pick(pool);
-          if (type === 'golem' && golems++ >= 1) type = 'skeleton';
+          if (type === 'golem' && golems++ >= maxGolems) type = 'skeleton';
           const [tx, ty] = rng.pick(free);
           wave.push({ type, x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE });
         }
@@ -262,7 +263,7 @@ function generateDungeon(seed, floor) {
     }
   }
   // El cofre nunca baja de: común (piso 1), rara (piso 2), épica (piso 3)
-  if (chestRoom) chestRoom.chestWeapon = { id: rng.pick(WEAPON_POOL), rar: Math.max(floor - 1, rollRarity(rng, floor)) };
+  if (chestRoom) chestRoom.chestWeapon = { id: rng.pick(WEAPON_POOL), rar: Math.max(Math.min(floor - 1, 3), rollRarity(rng, floor)) };
   if (shopRoom) {
     const guns = rng.shuffle(WEAPON_POOL.slice()).slice(0, 2);
     shopRoom.offers = [guns[0], 'maxshield', 'shield'].map(k => {
