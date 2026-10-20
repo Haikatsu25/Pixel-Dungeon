@@ -192,7 +192,7 @@ function buildSprites() {
   ], { k: K, p: '#7b3fa0', d: '#4a2370', y: '#ffe066' });
 
   // ---------- Gólem ----------
-  def('golem', [
+  const GOLEM = [
     '....kkkkkkkk....',
     '...kllllllllk...',
     '..klggggggggdk..',
@@ -208,7 +208,51 @@ function buildSprites() {
     '..kgggk..kggdk..',
     '..kdddk..kdddk..',
     '..kkkkk..kkkkk..',
-  ], { k: K, g: '#7d7d8c', l: '#a3a3b5', d: '#4d4d5c', r: '#ff7a1a' });
+  ];
+  def('golem', GOLEM, { k: K, g: '#7d7d8c', l: '#a3a3b5', d: '#4d4d5c', r: '#ff7a1a' });
+  def('lavagolem', GOLEM, { k: K, g: '#4a2a26', l: '#6b3b32', d: '#2a1515', r: '#ffe066' });
+
+  // ---------- Jefes nuevos ----------
+  def('necro', [
+    '.....kkkk.....',
+    '....kppppk....',
+    '...kppppppk...',
+    '..kppkkkkppk..',
+    '..kpkwwwwkpk..',
+    '..kpkgwwgkpk..',
+    '..kpkwwwwkpk..',
+    '..kppkwkkppk..',
+    '.kpppkkkkpppk.',
+    'kpqppppppppqpk',
+    'kpqqppyyppqqpk',
+    'kppqppyyppqppk',
+    'kpppppppppppk.',
+    'kpqppppppppqpk',
+    '.kpqqppppqqpk.',
+    '..kkkkkkkkkk..',
+  ], { k: K, p: '#2b2140', q: '#4a3870', w: '#e8e0d0', g: '#7dff6b', y: '#7dff6b' });
+
+  def('spider', [
+    '..k..........k..',
+    '...k...kk...k...',
+    'k...k.kppk.k...k',
+    '.k...kppppk...k.',
+    '..kkkpprrppkkk..',
+    'kk..kppppppk..kk',
+    '..kkpqppppqpkk..',
+    '.k..kppqqppk..k.',
+    'k..kpppppppk..k.',
+    '..k.kpqqqpk.k...',
+    '...k.kkkkk...k..',
+  ], { k: K, p: '#3b1f3b', q: '#b05ad6', r: '#ff2e4d' });
+
+  def('spiderling', [
+    'k..kk..k',
+    '.kkppkk.',
+    'kkprrpkk',
+    '.kkppkk.',
+    'k..kk..k',
+  ], { k: K, p: '#5d275d', r: '#ff2e4d' });
 
   // ---------- Objetos ----------
   def('coin', [

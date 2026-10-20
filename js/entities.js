@@ -15,10 +15,22 @@ function addShake(v) { G.shake = Math.max(G.shake, v); }
 
 function enemyShoot(x, y, ang, speed, opts = {}) {
   const sp = speed * (1 + 0.1 * Math.min(G.floor - 1, 5));
-  G.bullets.push({
+  const b = {
     x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: opts.r || 3.5, dmg: 1,
     from: 'e', color: opts.color || '#ff3b6b', life: opts.life || 4,
-  });
+  };
+  if (opts.homing) { b.homing = opts.homing; b.turn = opts.turn || 2; }
+  if (opts.split) b.split = opts.split;
+  if (opts.slow) b.slow = true;
+  G.bullets.push(b);
+  return b;
+}
+
+// Una roca que se rompe en fragmentos
+function splitBullet(b) {
+  const s = b.split, off = rnd(0, 1);
+  for (let i = 0; i < s.n; i++) enemyShoot(b.x - b.vx * 0.02, b.y - b.vy * 0.02, off + i * Math.PI * 2 / s.n, s.speed, { color: s.color, r: 3 });
+  spawnParticles(b.x, b.y, 8, s.color, 70, 0.3, 2);
 }
 
 function dropPickup(kind, x, y, extra) {
@@ -49,6 +61,7 @@ class Player {
     this.recoil = 0; this.swing = 0; this.swingDir = 1;
     this.dead = false; this.wheelCd = 0;
     this.ult = 0; this.ultT = 0;
+    this.slowT = 0;
   }
 
   get item() { return this.weapons[this.cur]; }
@@ -80,7 +93,7 @@ class Player {
         G.particles.push({ x: this.x + rnd(-3, 3), y: this.y + 6, vx: 0, vy: -10, life: 0.3, max: 0.3, color: '#8b8fb0', size: 2 });
       }
     } else {
-      const sp = this.ultT > 0 ? 115 : 95;
+      const sp = (this.ultT > 0 ? 115 : 95) * (this.slowT > 0 ? 0.55 : 1);
       vx = mx * sp; vy = my * sp;
     }
     moveEntity(this, vx * dt, vy * dt);
@@ -104,6 +117,7 @@ class Player {
     this.recoil = Math.max(0, this.recoil - dt * 20);
     this.swing = Math.max(0, this.swing - dt);
     this.invuln -= dt;
+    this.slowT -= dt;
 
     // Escudo: se recarga solo si pasas 3.5 s sin recibir daño
     this.sinceHit += dt;
@@ -219,6 +233,15 @@ class Player {
     }
     drawSprite(c, img, this.x, this.y - 3 - bob, this.face < 0);
     this.drawWeapon(c);
+    if (this.slowT > 0) {
+      // Telaraña pegada al caballero
+      c.strokeStyle = 'rgba(232,232,240,0.75)'; c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(this.x - 7, this.y - 9); c.lineTo(this.x + 7, this.y + 5);
+      c.moveTo(this.x + 7, this.y - 9); c.lineTo(this.x - 7, this.y + 5);
+      c.moveTo(this.x - 8, this.y - 2); c.lineTo(this.x + 8, this.y - 2);
+      c.stroke();
+    }
   }
 
   drawWeapon(c) {
@@ -240,6 +263,7 @@ const ENEMY_DEFS = {
   minislime: { hp: 4,  r: 4, pts: 10, spr: 'minislime', hw: 3, hh: 3, color: '#73eff7' },
   bat:       { hp: 5,  r: 5, pts: 35, spr: 'batA',      hw: 4, hh: 3, color: '#8e3fa0' },
   skeleton:  { hp: 11, r: 6, pts: 50, spr: 'skeleton',  hw: 4, hh: 5, color: '#e8e8e8' },
+  spiderling:{ hp: 3,  r: 4, pts: 15, spr: 'spiderling',hw: 3, hh: 3, color: '#8e3fa0' },
   mage:      { hp: 13, r: 6, pts: 60, spr: 'mage',      hw: 4, hh: 5, color: '#b05ad6' },
   golem:     { hp: 42, r: 9, pts: 90, spr: 'golem',     hw: 7, hh: 6, color: '#a3a3b5' },
 };
@@ -328,6 +352,13 @@ class Enemy {
           mvx = Math.cos(this.wob) * 20; mvy = Math.sin(this.wob * 1.3) * 20;
           if (this.atk <= 0) { this.teleport(); this.state = 'cast'; this.timer = 0.65; }
         }
+        break;
+      }
+      case 'spiderling': {
+        this.wob += dt * 9;
+        const sp = 105 * fm, perp = ca + Math.PI / 2, w = Math.sin(this.wob) * 40;
+        mvx = Math.cos(ca) * sp + Math.cos(perp) * w;
+        mvy = Math.sin(ca) * sp + Math.sin(perp) * w;
         break;
       }
       case 'golem': {
@@ -435,175 +466,5 @@ class Enemy {
       c.fillStyle = '#1a1c2c'; c.fillRect(Math.round(this.x - w / 2) - 1, Math.round(y) - 1, w + 2, 3);
       c.fillStyle = '#e43b44'; c.fillRect(Math.round(this.x - w / 2), Math.round(y), Math.max(0, w * this.hp / this.maxHp), 1);
     }
-  }
-}
-
-// ---------- Jefe: Rey Slime ----------
-const BOSS_NAMES = ['REY SLIME', 'REY SLIME DE LA CRIPTA', 'REY SLIME DE FUEGO'];
-function toRoman(n) {
-  const map = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'],
-    [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
-  let s = '';
-  for (const [v, r] of map) while (n >= v) { s += r; n -= v; }
-  return s;
-}
-// Cada vuelta al ciclo de temas, el jefe regresa con un número: REY SLIME II, III...
-function bossName(floor) {
-  const cycle = Math.floor((floor - 1) / BOSS_NAMES.length);
-  return BOSS_NAMES[themeIndex(floor)] + (cycle > 0 ? ' ' + toRoman(cycle + 1) : '');
-}
-
-class Boss {
-  constructor(x, y) {
-    this.type = 'boss'; this.isBoss = true;
-    this.x = x; this.y = y; this.hw = 16; this.hh = 12; this.r = 18;
-    this.maxHp = this.hp = 300 + 170 * (G.floor - 1);
-    this.name = bossName(G.floor);
-    this.flash = 0; this.state = 'intro'; this.timer = 1.0;
-    this.z = 0; this.spin = 0; this.shotT = 0; this.count = 0; this.last = '';
-    this.dead = false; this.face = 1; this.anim = 0;
-    this.tx = x; this.ty = y; this.sx = x; this.sy = y;
-  }
-
-  get phase2() { return this.hp < this.maxHp * 0.5; }
-  get air() { return this.z > 6; }
-
-  toMove(t) { this.state = 'move'; this.timer = t || rnd(1.0, 1.6); }
-
-  nextAttack() {
-    const opts = ['spiral', 'burst', 'jump', 'summon'].filter(o => o !== this.last);
-    const a = opts[Math.floor(Math.random() * opts.length)];
-    this.last = a;
-    if (a === 'spiral') { this.state = 'spiral'; this.timer = 2.6; this.shotT = 0; }
-    if (a === 'burst') { this.state = 'burst'; this.count = 3; this.shotT = 0.3; }
-    if (a === 'jump') { this.state = 'jumpUp'; this.timer = 0.4; Sfx.play('jump'); }
-    if (a === 'summon') { this.state = 'summon'; this.timer = 0.8; }
-  }
-
-  update(dt) {
-    const p = G.player;
-    this.anim += dt; this.flash -= dt;
-    const ang = angleTo(this.x, this.y, p.x, p.y);
-    this.face = p.x >= this.x ? 1 : -1;
-    const sp2 = this.phase2 ? 1.35 : 1;
-    this.timer -= dt * (this.state === 'move' ? sp2 : 1);
-
-    switch (this.state) {
-      case 'intro':
-        if (this.timer <= 0) this.toMove();
-        break;
-      case 'move':
-        moveEntity(this, Math.cos(ang) * 28 * sp2 * dt, Math.sin(ang) * 28 * sp2 * dt);
-        if (this.timer <= 0) this.nextAttack();
-        break;
-      case 'spiral':
-        this.shotT -= dt;
-        if (this.shotT <= 0) {
-          this.shotT = this.phase2 ? 0.075 : 0.1;
-          const arms = this.phase2 ? 4 : 3;
-          for (let a = 0; a < arms; a++) enemyShoot(this.x, this.y, this.spin + a * Math.PI * 2 / arms, 95, { color: '#7dff6b', r: 4 });
-          this.spin += 0.23;
-          Sfx.play('eshoot');
-        }
-        if (this.timer <= 0) this.toMove();
-        break;
-      case 'burst':
-        this.shotT -= dt;
-        if (this.shotT <= 0) {
-          if (this.count > 0) {
-            this.count--; this.shotT = 0.45;
-            const n = this.phase2 ? 7 : 5;
-            for (let i = 0; i < n; i++) enemyShoot(this.x, this.y, ang + (i - (n - 1) / 2) * 0.18, 150, { color: '#ff4a6e', r: 4 });
-            Sfx.play('eshoot');
-          } else this.toMove();
-        }
-        break;
-      case 'jumpUp':
-        this.z += 220 * dt;
-        if (this.timer <= 0) {
-          this.state = 'jumpAir'; this.timer = 0.7;
-          this.tx = p.x; this.ty = p.y; this.sx = this.x; this.sy = this.y;
-        }
-        break;
-      case 'jumpAir': {
-        const k = clamp(1 - this.timer / 0.7, 0, 1);
-        moveEntity(this, lerp(this.sx, this.tx, k) - this.x, lerp(this.sy, this.ty, k) - this.y);
-        this.z = 88 * (1 - k);
-        if (this.timer <= 0) {
-          this.z = 0;
-          const n = this.phase2 ? 24 : 16;
-          for (let i = 0; i < n; i++) enemyShoot(this.x, this.y, i * Math.PI * 2 / n, 110, { color: '#ffcd75', r: 4 });
-          addShake(10); Sfx.play('land');
-          spawnParticles(this.x, this.y + 12, 24, '#38b764', 120, 0.5, 3);
-          this.toMove(0.9);
-        }
-        break;
-      }
-      case 'summon':
-        if (this.timer <= 0) {
-          const n = this.phase2 ? 4 : 3;
-          if (G.enemies.length < 8) {
-            for (let i = 0; i < n; i++) {
-              const a = i * Math.PI * 2 / n + rnd(0, 1);
-              let x = this.x + Math.cos(a) * 40, y = this.y + Math.sin(a) * 40;
-              if (boxCollides(x, y, 4, 4)) { x = this.x; y = this.y; }
-              G.markers.push({ type: 'minislime', x, y, t: 0.6 });
-            }
-            Sfx.play('spawn');
-          }
-          this.toMove();
-        }
-        break;
-    }
-
-    if (this.phase2 && Math.random() < 0.15) {
-      G.particles.push({ x: this.x + rnd(-16, 16), y: this.y + rnd(-10, 10) - this.z, vx: 0, vy: -20, life: 0.5, max: 0.5, color: '#ff5a5a', size: 2 });
-    }
-    if (!this.air && !p.dead && dist(this.x, this.y, p.x, p.y) < this.r + p.r - 2) p.hurt();
-  }
-
-  damage(amount) {
-    if (this.dead || this.air) return;
-    this.hp -= amount;
-    G.player.chargeUlt(amount);
-    this.flash = 0.06;
-    addText(this.x + rnd(-10, 10), this.y - 30, String(Math.round(amount)), '#ffffff', 0.45);
-    Sfx.play('hit');
-    if (this.hp <= 0) this.die();
-  }
-
-  die() {
-    this.dead = true;
-    spawnParticles(this.x, this.y, 60, '#38b764', 200, 0.9, 3);
-    spawnParticles(this.x, this.y, 30, '#ffcd75', 160, 0.9, 2);
-    Sfx.play('kill'); Sfx.play('victory');
-    addShake(14);
-    G.onKill(this);
-    for (let i = 0; i < 8; i++) dropPickup('coin', this.x, this.y);
-    dropPickup('weapon', this.x, this.y, { weapon: { id: G.rng.pick(WEAPON_POOL), rar: Math.min(G.floor, 3) } });
-    G.onBossKilled(this);
-  }
-
-  draw(c) {
-    if (this.state === 'jumpAir' || this.state === 'jumpUp') {
-      const tx = this.state === 'jumpAir' ? this.tx : G.player.x;
-      const ty = this.state === 'jumpAir' ? this.ty : G.player.y;
-      c.strokeStyle = 'rgba(255,60,90,0.85)'; c.lineWidth = 1.5;
-      c.beginPath(); c.ellipse(tx, ty + 6, 22, 9, 0, 0, Math.PI * 2); c.stroke();
-      c.fillStyle = 'rgba(255,60,90,0.15)'; c.fill();
-    }
-    const shs = 1 - Math.min(0.6, this.z / 150);
-    drawShadow(c, this.x, this.y + 15, 22 * shs, 6 * shs);
-
-    const img = SPR['king' + (themeIndex(G.floor) + 1) + (this.flash > 0 ? '_w' : '')];
-    const sc = 4;
-    let squash = this.state === 'move' ? Math.sin(this.anim * 7) * 0.06 : 0;
-    if (this.state === 'jumpUp') squash = -0.15;
-    if (this.state === 'intro') squash = Math.sin(this.anim * 20) * 0.08;
-    const dw = img.width * sc * (1 + squash), dh = img.height * sc * (1 - squash);
-    const dx = Math.round(this.x - dw / 2), dy = Math.round(this.y + 16 - dh - this.z);
-    c.drawImage(img, dx, dy, dw, dh);
-    const cr = SPR.crown;
-    c.drawImage(cr, Math.round(this.x - cr.width), dy - cr.height * 2 + 6, cr.width * 2, cr.height * 2);
   }
 }

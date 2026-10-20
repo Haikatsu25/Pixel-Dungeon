@@ -47,7 +47,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 const G = {
   state: 'menu', time: 0, floor: 1, seed: 0, seedText: '', name: 'JUGADOR',
   map: null, mapW: 0, mapH: 0, dungeon: null,
-  player: null, enemies: [], bullets: [], pickups: [], props: [], particles: [], texts: [], markers: [], effects: [],
+  player: null, enemies: [], bullets: [], pickups: [], props: [], particles: [], texts: [], markers: [], effects: [], hazards: [],
   boss: null, activeRoom: null, currentRoom: null, interact: null,
   cam: { x: 0, y: 0 }, shake: 0, flash: 0,
   score: 0, combo: { count: 0, timer: 0 }, stats: null,
@@ -116,6 +116,7 @@ G.onBossKilled = function () {
     if (!e.isBoss && !e.dead) { e.dead = true; spawnParticles(e.x, e.y, 8, e.def.color, 80, 0.4, 2); }
   }
   G.markers.length = 0;
+  G.hazards.length = 0;
   for (const b of G.bullets) if (b.from === 'e') b.dead = true;
   clearRoom(r);
   G.boss = null;
@@ -133,7 +134,7 @@ function beginRoom(r) {
   addShake(3);
   if (r.type === 'boss') {
     r.bossDelay = 1.6;
-    showBanner(bossName(G.floor), '¡Prepárate!', '#ff3b5c', 2);
+    showBanner(bossName(G.floor), bossHint(G.floor), '#ff3b5c', 2.2);
     Sfx.play('roar');
   } else {
     spawnWave(r);
@@ -169,9 +170,9 @@ function updateRooms(dt) {
     if (!G.boss && r.bossDelay > 0) {
       r.bossDelay -= dt;
       if (r.bossDelay <= 0) {
-        G.boss = new Boss((r.cx + 0.5) * TILE, (r.cy - 2) * TILE);
+        G.boss = createBoss((r.cx + 0.5) * TILE, (r.cy - 2) * TILE);
         G.enemies.push(G.boss);
-        spawnParticles(G.boss.x, G.boss.y, 30, '#38b764', 120, 0.6, 3);
+        spawnParticles(G.boss.x, G.boss.y, 30, G.boss.color, 120, 0.6, 3);
         addShake(6);
       }
     }
@@ -314,7 +315,7 @@ function loadFloor(n) {
   G.dungeon = d; G.map = d.map; G.mapW = d.w; G.mapH = d.h;
   buildTiles(n);
   G.enemies = []; G.bullets = []; G.pickups = []; G.props = [];
-  G.particles = []; G.texts = []; G.markers = []; G.effects = [];
+  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = [];
   G.boss = null; G.activeRoom = null; G.currentRoom = d.start;
   d.start.visited = true;
   for (const r of d.rooms) {
@@ -359,7 +360,7 @@ function initPreview() {
   G.dungeon = d; G.map = d.map; G.mapW = d.w; G.mapH = d.h;
   buildTiles(1);
   G.enemies = []; G.bullets = []; G.pickups = []; G.props = [];
-  G.particles = []; G.texts = []; G.markers = []; G.effects = [];
+  G.particles = []; G.texts = []; G.markers = []; G.effects = []; G.hazards = [];
   G.boss = null; G.banner = null; G.activeRoom = null;
 }
 
@@ -428,10 +429,18 @@ function update(dt) {
   // Balas
   for (const b of G.bullets) {
     if (b.dead) continue;
+    // Orbes que persiguen al jugador durante un tiempo
+    if (b.homing > 0 && p && !p.dead) {
+      b.homing -= dt;
+      const sp = Math.hypot(b.vx, b.vy), cur = Math.atan2(b.vy, b.vx);
+      const na = cur + clamp(angleDiff(cur, angleTo(b.x, b.y, p.x, p.y)), -b.turn * dt, b.turn * dt);
+      b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+    }
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if (b.life <= 0) { b.dead = true; continue; }
+    if (b.life <= 0) { b.dead = true; if (b.split) splitBullet(b); continue; }
     if (solidAt(b.x, b.y)) {
       b.dead = true;
+      if (b.split) splitBullet(b);
       spawnParticles(b.x - b.vx * dt, b.y - b.vy * dt, 4, b.color, 50, 0.2, 1.5);
       continue;
     }
@@ -448,9 +457,21 @@ function update(dt) {
         }
       }
     } else if (p && !p.dead && dist(b.x, b.y, p.x, p.y) < b.r + 4) {
-      if (p.hurt()) b.dead = true;
+      if (p.hurt()) {
+        b.dead = true;
+        if (b.slow) { p.slowT = 1.6; addText(p.x, p.y - 20, 'ATRAPADO', '#e8e8f0', 0.8); }
+      }
     }
   }
+
+  // Charcos de lava: aviso y luego queman al pisarlos (rodar te protege)
+  for (const h of G.hazards) {
+    if (h.warn > 0) { h.warn -= dt; continue; }
+    h.t -= dt;
+    if (p && !p.dead && dist(h.x, h.y, p.x, p.y) < h.r) p.hurt();
+    if (Math.random() < 0.2) G.particles.push({ x: h.x + rnd(-h.r, h.r) * 0.7, y: h.y + rnd(-h.r, h.r) * 0.5, vx: 0, vy: -20, life: 0.4, max: 0.4, color: '#ffb547', size: 2 });
+  }
+  G.hazards = G.hazards.filter(h => h.warn > 0 || h.t > 0);
 
   // Monedas, energía y armas en el suelo
   for (const pk of G.pickups) {
@@ -611,6 +632,25 @@ function drawPickup(pk) {
   }
 }
 
+function drawHazard(h) {
+  if (h.warn > 0) {
+    ctx.strokeStyle = 'rgba(255,110,30,' + (0.4 + 0.5 * Math.abs(Math.sin(G.time * 14))) + ')';
+    ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.ellipse(h.x, h.y, h.r, h.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    return;
+  }
+  const fade = Math.min(1, h.t / 0.5);
+  ctx.globalAlpha = fade;
+  ctx.fillStyle = '#7a1f0a';
+  ctx.beginPath(); ctx.ellipse(h.x, h.y, h.r + 1, h.r * 0.6 + 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff5a1f';
+  ctx.beginPath(); ctx.ellipse(h.x, h.y, h.r, h.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffb547';
+  ctx.beginPath(); ctx.ellipse(h.x + Math.sin(G.time * 3 + h.x) * 3, h.y, h.r * 0.5, h.r * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
 function drawMarker(m) {
   const k = 1 - m.t / 0.8;
   ctx.strokeStyle = 'rgba(255,70,100,' + (0.4 + 0.5 * Math.abs(Math.sin(G.time * 18))) + ')';
@@ -645,6 +685,7 @@ function drawLighting(camX, camY) {
   }
   for (const o of G.props) if (o.kind === 'portal') light(o.x - camX, o.y - camY, 70, 0.9);
   if (G.boss) light(G.boss.x - camX, G.boss.y - camY, 90, 0.7);
+  for (const h of G.hazards) if (h.warn <= 0) light(h.x - camX, h.y - camY, h.r * 2.4, 0.75);
 
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -698,6 +739,7 @@ function render() {
   drawTiles(camX, camY);
   drawFloorDecor();
   for (const o of G.props) if (o.kind === 'portal') drawPortal(o);
+  for (const h of G.hazards) drawHazard(h);
   for (const m of G.markers) drawMarker(m);
   for (const pk of G.pickups) drawPickup(pk);
   const list = G.props.filter(o => o.kind !== 'portal').concat(G.enemies);
@@ -711,6 +753,7 @@ function render() {
   ctx.save();
   ctx.translate(-camX, -camY);
   drawTorches();
+  for (const e of G.enemies) if (e.drawFx) e.drawFx(ctx);
   for (const b of G.bullets) {
     if (b.laser) {
       const sp = Math.hypot(b.vx, b.vy) || 1, lx = b.vx / sp * 12, ly = b.vy / sp * 12;
